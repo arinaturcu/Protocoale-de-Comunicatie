@@ -1,0 +1,48 @@
+Turcu Arina-Emanuela 323CA
+			          TEMA 1 PC
+			          -Router-
+			    
+1. Parsarea tabelei de rutare
+		Fisierul parser.c contine implementarea functiei read_rtable() care
+    primeste adresa primului element dintr-un array de structuri de tipul
+    route_table_entry si un fisier din care sa citeasca. Citeste fiecare linie
+    si completeaza astfel fiecare element din array-ul de structuri. Functia
+    returneaza numarul de entry-uri citite si completate.
+    
+2. Protocolul ARP
+		Atunci cand router-ul primeste un pachet de tipul ARP verifica daca
+    este un ARP request sau un ARP reply. Daca este un ARP request, verifica
+    daca ii este destinat lui sau daca e nevoie sa il dirijeze mai departe.
+    Daca ii este destinat lui, completeaza headerul de ethernet corespunzator
+    si trimite un ARP reply catre cel de la care a trimis request-ul (adresa 
+    de ethernet pentru sursa din pachetul primit devine adresa destinatiei in
+    pachetul de reply trimis).
+    	Atunci cand se dirijeaza un pachet in functia forward_packet() se
+    consulta tabela ARP pentru a vedea unde sa dirijeze pachetul mai departe.
+    Daca in tabela ARP nu exista un entry corespunzator adresei IP date, se
+    face un ARP request si se pune pachetul original in coada packets. Ca
+    adresa ethernet de destinatie se da adresa de broadcast ff:ff:ff:ff:ff:ff.
+    	Cand ruterul primeste un ARP reply, se adauga un entry nou in tabela
+    ARP cu informatia noua si se dirijeaza pachetul pus in coada pentru ca in
+    acest moment avem adresa MAC necesara.
+    
+3. Procesul de dirijare
+		Procesul de dirijare este implementat in functia forward_packet()
+    si m-am folosit de scheletul de cod din laboratorul 4. Prima data se
+    verifica checksum-ul apoi se cauta cea mai buna ruta pe care pachetul sa fie
+    trimis, best_route (cu functia get_best_route() care cauta in tabela de
+    rutare folosind un algoritm de binary search dupa ce tabela a fost sortata
+    dupa prefix & mask folosid functia qsort). In continuare se actualizeaza 
+    ttl-ul si se recalculeaza checksum-ul. Apoi se cauta in tabela ARP entry-ul 
+    care se potriveste adresei IP, next_hop. Se completeaza header-ul de 
+    ethernet cu adresele sura si destinatie corespunzatoare si se trimite 
+    pachetul pe interfata din best_route.
+   
+4. Protocolul ICMP
+		Pentru implementare suportului pentru protocolul de ICMP m-am folosit
+    de API-ul din skel.
+    	Atunci cand router-ul primeste un pachet de tip ICMP verifica daca ii
+    este destinat lui, caz in care raspunde cu un ICMP reply, sau trebuie sa
+    il dea mai departe, caz in care il dirijeaza ca pe un pachet obisnuit
+    folosind functia forward_packet().
+	
