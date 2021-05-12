@@ -1,4 +1,4 @@
-#include "server_helper.h"
+#include "communication.h"
 
 #define TYPE_MAX_LEN 11
 
@@ -166,16 +166,24 @@ int main(int argc, char *argv[])
 
 			if (strncmp(command, "subscribe", 10) == 0) {
 				char *topic = strtok(NULL, " ");
+				if (topic == NULL) continue;
+
 				char *sf = strtok(NULL, " \n"); 
+				if (sf == NULL) continue;
+
 				subscribe(sockfd, topic, sf[0]);
 				continue;
 			}
 
 			if (strncmp(command, "unsubscribe", 12) == 0) {
 				char *topic = strtok(NULL, " \n");
+				if (topic == NULL) continue;
+
 				unsubscribe(sockfd, topic);
 				continue;
 			}
+
+			continue;
 		} 
 
 		if (FD_ISSET(sockfd, &tmp_fds)) {

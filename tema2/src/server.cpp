@@ -1,4 +1,4 @@
-#include "server_helper.h"
+#include "communication.h"
 
 void usage(char *file) {
 	fprintf(stderr, "Usage: %s server_port\n", file);
@@ -27,6 +27,7 @@ int main(int argc, char **argv) {
 	int sock_udp = socket(PF_INET, SOCK_DGRAM, 0);
 	DIE(sock_udp == -1, "Open UDP socket");
 
+	// dezactiveaza algoritmul Nagle
 	int on = 1;
 	setsockopt(sock_tcp, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
 
@@ -66,7 +67,7 @@ int main(int argc, char **argv) {
 		for (int i = 0; i <= fd_max; i++) {
 			if (FD_ISSET(i, &tmp_fds)) {
 				if (i == 0) {
-					handle_stdin_message(buffer, sock_tcp, sock_udp);
+					handle_stdin_message(buffer, sock_tcp);
 					continue;
 				}
 
@@ -82,7 +83,7 @@ int main(int argc, char **argv) {
 					continue;
 				}
 				
-				handle_tcp_message(buffer, i, active_clients, all_clients, active_ids_sockets, topics_subs, read_fds);
+				handle_tcp_message(i, read_fds, active_clients, all_clients, active_ids_sockets, topics_subs);
 			}
 		}
 	}

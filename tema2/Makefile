@@ -9,8 +9,8 @@ IP_SERVER =
 all: server subscriber
 
 # Compileaza server.c
-server: ./src/server.cpp ./src/server_helper.cpp
-	g++ -g ./src/server.cpp ./src/server_helper.cpp -o server
+server: ./src/server.cpp ./src/communication.cpp
+	g++ -g ./src/server.cpp ./src/communication.cpp -o server
 
 # Compileaza subscriber.c
 subscriber: ./src/subscriber.cpp

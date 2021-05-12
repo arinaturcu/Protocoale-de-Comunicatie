@@ -1,4 +1,4 @@
-#include "server_helper.h"
+#include "communication.h"
 
 static void reconnect(char* new_client_id,
 					int newsockfd, sockaddr_in cli_addr,
@@ -8,24 +8,22 @@ static void reconnect(char* new_client_id,
 					unordered_map<string, list<sub_message>> &store_and_forward) {
 	tcp_client client = all_clients.at(new_client_id);
 
-	tcp_client client1;
-	memcpy(&client1, &client, sizeof(client));
-	client1.socket = newsockfd;
-
-	active_clients.insert({newsockfd, client1});
+	active_clients.insert({newsockfd, client});
 	active_ids_sockets.insert({client.id, newsockfd});
 
 	all_clients.erase(new_client_id);
-	all_clients.insert({new_client_id, client1});
+	all_clients.insert({new_client_id, client});
 
-	printf("New client %s connected from %s:%d.\n",
-		new_client_id, inet_ntoa(cli_addr.sin_addr), (int)ntohs(cli_addr.sin_port));
+	cout << "New client " << new_client_id << " connected from " 
+		 << inet_ntoa(cli_addr.sin_addr) << ":" << ntohs(cli_addr.sin_port) << ".\n"; 
 
 	auto it = store_and_forward.find(client.id);
 	if (it != store_and_forward.end()) {
 		for (auto to_send = it->second.begin(); to_send != it->second.end(); to_send++) {
 			send(client.socket, &(*to_send), sizeof(sub_message), 0);
 		}
+
+		store_and_forward.erase(it);
 	}
 }
 
@@ -39,24 +37,12 @@ static void add_new_client(int newsockfd, char new_client_id[],
 	client.socket = newsockfd;
 	strcpy(client.id, new_client_id);
 
-	// all_clients
-	char id[MAX_ID_LEN];
-	strcpy(id, new_client_id);
-	all_clients.insert({id, client});
+	all_clients.insert({new_client_id, client});
+	active_clients.insert({newsockfd, client});
+	active_ids_sockets.insert({new_client_id, newsockfd});
 
-	// active_clients
-	tcp_client client1;
-	client1.socket = newsockfd;
-	strcpy(client1.id, new_client_id);
-	active_clients.insert({newsockfd, client1});
-
-	// active_ids_sockets
-	char id2[MAX_ID_LEN];
-	strcpy(id2, new_client_id);
-	active_ids_sockets.insert({id2, newsockfd});
-
-	printf("New client %s connected from %s:%d.\n",
-			new_client_id, inet_ntoa(cli_addr.sin_addr), (int) ntohs(cli_addr.sin_port));
+	cout << "New client " << new_client_id << " connected from " 
+		 << inet_ntoa(cli_addr.sin_addr) << ":" << ntohs(cli_addr.sin_port) << ".\n"; 
 }
 
 void handle_connection_request(int sock_tcp, int &fd_max, fd_set &read_fds,
@@ -68,6 +54,7 @@ void handle_connection_request(int sock_tcp, int &fd_max, fd_set &read_fds,
 	char new_client_id[MAX_ID_LEN];
 
 	int clilen = sizeof(cli_addr);
+	memset(&cli_addr, 0, sizeof(sockaddr_in));
 	int newsockfd = accept(sock_tcp, (struct sockaddr *)&cli_addr, (socklen_t *)&clilen);
 	DIE(newsockfd < 0, "accept");
 
@@ -78,7 +65,7 @@ void handle_connection_request(int sock_tcp, int &fd_max, fd_set &read_fds,
 
 	// verific daca clientul este deja conectat
 	if (active_ids_sockets.find(new_client_id) != active_ids_sockets.end()) {
-		printf("Client %s already connected.\n", new_client_id);
+		cout << "Client " << new_client_id << " already connected.\n";
 		shutdown(newsockfd, SHUT_RDWR);
 		close(newsockfd);
 		return;
@@ -100,7 +87,7 @@ void handle_connection_request(int sock_tcp, int &fd_max, fd_set &read_fds,
 	add_new_client(newsockfd, new_client_id, cli_addr, active_clients, all_clients, active_ids_sockets);
 }
 
-void handle_stdin_message(char buffer[], int sock_tcp, int sock_udp) {
+void handle_stdin_message(char buffer[], int sock_tcp) {
 	memset(buffer, 0, BUFLEN);
 	fgets(buffer, BUFLEN, stdin);
 
@@ -108,8 +95,6 @@ void handle_stdin_message(char buffer[], int sock_tcp, int sock_udp) {
 		shutdown(sock_tcp, SHUT_RDWR);
 		close(sock_tcp);
 		exit(0);
-	} else {
-		printf("Am primit mesajul: %s\n", buffer);
 	}
 }
 
@@ -173,12 +158,11 @@ void handle_udp_message (char buffer[], int sock_udp, int i,
 	}
 }
 
-void handle_tcp_message(char buffer[], int i,
+void handle_tcp_message(int i, fd_set &read_fds,
 						unordered_map<int, tcp_client> &active_clients,
 						unordered_map<string, tcp_client> &all_clients,
 						unordered_map<string, int> &active_ids_sockets,
-						unordered_map<string, list<subscription>> &topics_subs,
-						fd_set &read_fds) {
+						unordered_map<string, list<subscription>> &topics_subs ) {
 	client_request req;
 	memset(&req, 0, sizeof(client_request));
 
@@ -222,8 +206,8 @@ void handle_tcp_message(char buffer[], int i,
 			}
 		}
 
-		memcpy(&client, &(active_clients.at(i)), sizeof(client));
-		it->second.insert(it->second.end(), {client, req.sf});
+		// memcpy(&client, &(active_clients.at(i)), sizeof(client));
+		it->second.insert(it->second.end(), {active_clients.at(i), req.sf});
 		return;
 	}
 
