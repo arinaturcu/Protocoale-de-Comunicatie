@@ -1,7 +1,6 @@
 #include <nlohmann/json.hpp>
 #include <bits/stdc++.h>
 #include <iostream>
-#include <stdio.h>      /* printf, sprintf */
 #include <stdlib.h>     /* exit, atoi, malloc, free */
 #include <unistd.h>     /* read, write, close */
 #include <string.h>     /* memcpy, memset */
@@ -22,20 +21,14 @@ class Handler {
     char host[14] = "34.118.48.238";
 
     char content_type[17] = "application/json";
-    char register_link[27] = "/api/v1/tema/auth/register";
-    char login_link[24] = "/api/v1/tema/auth/login";
-    char enter_library_link[28] = "/api/v1/tema/library/access";
-    char books_link[27] = "/api/v1/tema/library/books";
-    char logout_link[25] = "/api/v1/tema/auth/logout";
+    char register_path[27] = "/api/v1/tema/auth/register";
+    char login_path[24] = "/api/v1/tema/auth/login";
+    char enter_library_path[28] = "/api/v1/tema/library/access";
+    char books_path[27] = "/api/v1/tema/library/books";
+    char logout_path[25] = "/api/v1/tema/auth/logout";
 
     char **cookies;
     char *token_access;
-
- public:
-    Handler() {
-        this->cookies = NULL;
-        this->token_access = NULL;
-    }
 
     char *take_cookie(char *response) {
         char *start;
@@ -62,44 +55,71 @@ class Handler {
         return start;
     }
 
-    void handle_auth(char *auth_type) {
+ public:
+    Handler() {
+        this->cookies = NULL;
+        this->token_access = NULL;
+    }
+
+    void handle_auth(string auth_type) {
         char *message;
         char *response;
-        char buffer[BUFLEN];
+        string buffer;
         json credentials;
+        json response_json;
 
         int sockfd = open_connection(host, PORT, AF_INET, SOCK_STREAM, 0);
 
-        printf("username=");
-        memset(buffer, 0, BUFLEN);
-        fgets(buffer, BUFLEN, stdin);
-
-        buffer[strlen(buffer) - 1] = '\0';
+        cout << "username=";
+        getline(cin, buffer);
         credentials["username"] = buffer;
 
-        printf("password=");
-        memset(buffer, 0, BUFLEN);
-        fgets(buffer, BUFLEN, stdin);
-
-        buffer[strlen(buffer) - 1] = '\0';
+        cout << "password=";
+        getline(cin, buffer);
         credentials["password"] = buffer;
 
         char *data = strdup(credentials.dump().c_str());
-        if (strcmp(auth_type, "register") == 0) {
-            message = compute_post_request(host, register_link, content_type, data, NULL, 0, NULL);
+        if (auth_type == "register") {
+            message = compute_post_request(host, register_path, content_type, data, NULL, 0, NULL);
         }
 
-        if (strcmp(auth_type, "login") == 0) {
-            message = compute_post_request(host, login_link, content_type, data, NULL, 0, NULL);
-        }
+        if (auth_type == "login") {
+            if (cookies != NULL) {
+                free(cookies[0]);
+                free(cookies);
+                cookies = NULL;
+            }
 
-        printf("REQUEST AUTH:\n%s\n", message);
+            if (token_access != NULL) {
+                free(token_access);
+                token_access = NULL;
+            }
+
+            message = compute_post_request(host, login_path, content_type, data, NULL, 0, NULL);
+        }
 
         send_to_server(sockfd, message);
         response = receive_from_server(sockfd);
-        printf("RESPONSE AUTH:\n%s\n", response);
 
-        if (strcmp(auth_type, "login") == 0 && strlen(response) != 0) {
+        char *response_data = strstr(response, "{");
+        if (response_data != NULL) response_json = json::parse(string(response_data));
+
+        if (response_json.find("error") != response_json.end()) {
+            cout << "\nError: " << response_json["error"] << endl << endl;
+
+            free(message);
+            free(response);
+            free(data);
+            return;
+        }
+
+        response_data = strstr(response, " ");
+        char *fine = strstr(response_data, "\n");
+        *fine = '\0';
+
+        cout << "\nRESPONSE:" << response_data << endl << endl;
+
+        if (auth_type == "login" && strlen(response) != 0) {
             cookies = (char **)malloc(sizeof(char*));
             cookies[0] = (char *)malloc(BUFLEN * sizeof(char));
             strcpy(cookies[0], take_cookie(response));
@@ -116,20 +136,25 @@ class Handler {
 
         int sockfd = open_connection(host, PORT, AF_INET, SOCK_STREAM, 0);
 
-        message = compute_get_request(host, enter_library_link, NULL, cookies, 1, NULL);
-        printf("REQUEST:\n%s\n", message);
-
+        message = compute_get_request(host, enter_library_path, NULL, cookies, 1, NULL);
         send_to_server(sockfd, message);
         response = receive_from_server(sockfd);
-        printf("RESPONSE:\n%s\n", response);
 
         json data;
         char *body_data = strstr(response, "{");
         data = json::parse(string(body_data));
 
+        char *response_data = strstr(response, " ");
+        char *fine = strstr(response_data, "\n");
+        *fine = '\0';
+
+        cout << "\nRESPONSE:" << response_data << endl << endl;
+
         if (data.find("token") != data.end()) {
             token_access = strdup(data["token"].dump().c_str() + 1);
             token_access[strlen(token_access) - 1] = '\0';
+        } else if (data.find("error") != data.end()) {
+            cout << "\nError: " << data["error"] << endl << endl;
         }
 
         free(message);
@@ -142,12 +167,36 @@ class Handler {
 
         int sockfd = open_connection(host, PORT, AF_INET, SOCK_STREAM, 0);
 
-        message = compute_get_request(host, books_link, NULL, NULL, 0, token_access);
-        printf("REQUEST:\n%s\n", message);
+        message = compute_get_request(host, books_path, NULL, NULL, 0, token_access);
 
         send_to_server(sockfd, message);
         response = receive_from_server(sockfd);
-        printf("RESPONSE:\n%s\n", response);
+
+        json data;
+        char *body_data = strstr(response, "[");
+        if (body_data == NULL) body_data = strstr(response, "{");
+
+        data = json::parse(string(body_data));
+
+        char *response_data = strstr(response, " ");
+        char *fine = strstr(response_data, "\n");
+        *fine = '\0';
+
+        cout << "\nRESPONSE:" << response_data << endl;
+
+        if (data.find("error") != data.end()) {
+            cout << "Error: " << data["error"] << endl << endl;
+        } else {
+            cout << "Array of books:\n[";
+
+            for (auto book : data) {
+                cout << "\n\tid: " << book["id"] << ", ";
+                cout << "title: " << book["title"];
+            }
+
+            if (data.size() != 0) cout << endl; else cout << "Empty";
+            cout << "]" << endl << endl;
+        }
 
         free(message);
         free(response);
@@ -158,26 +207,46 @@ class Handler {
         char *response;
 
         cout << "id=";
-        char *id = (char *)malloc(BUFLEN * sizeof(char));
-        fgets(id, BUFLEN, stdin);
-        id[strlen(id) - 1] = '\0';
+        string id;
+        getline(cin, id);
 
         int sockfd = open_connection(host, PORT, AF_INET, SOCK_STREAM, 0);
 
-        char *get_book_link = (char *) malloc(BUFLEN * sizeof(char));
-        strcpy(get_book_link, books_link);
-        strcat(get_book_link, "/");
-        strcat(get_book_link, id);
+        char *get_book_path = (char *) malloc(BUFLEN * sizeof(char));
+        strcpy(get_book_path, books_path);
+        strcat(get_book_path, "/");
+        strcat(get_book_path, id.c_str());
 
-        message = compute_get_request(host, get_book_link, NULL, NULL, 0, token_access);
-        printf("REQUEST:\n%s\n", message);
-
+        message = compute_get_request(host, get_book_path, NULL, NULL, 0, token_access);
         send_to_server(sockfd, message);
-        response = receive_from_server(sockfd);
-        printf("RESPONSE:\n%s\n", response);
 
-        free(id);
-        free(get_book_link);
+        response = receive_from_server(sockfd);
+
+        json data;
+        char *body_data = strstr(response, "[");
+        if (body_data == NULL) body_data = strstr(response, "{");
+
+        data = json::parse(string(body_data));
+
+        char *response_data = strstr(response, " ");
+        char *fine = strstr(response_data, "\n");
+        *fine = '\0';
+
+        cout << "\nRESPONSE:" << response_data << endl;
+
+        if (data.find("error") != data.end()) {
+            cout << "Error: " << data["error"] << endl << endl;
+        } else {
+            auto book = data[0];
+            cout << "Book with id "  << id << ":\n";
+            cout << "\ttitle: "      << book["title"]      << endl;
+            cout << "\tauthor: "     << book["author"]     << endl;
+            cout << "\tpublisher: "  << book["publisher"]  << endl;
+            cout << "\tgenre: "      << book["genre"]      << endl;
+            cout << "\tpage_count: " << book["page_count"] << endl << endl;
+        }
+
+        free(get_book_path);
         free(message);
         free(response);
     }
@@ -187,6 +256,7 @@ class Handler {
         char *response;
 
         json book;
+        json response_json;
         string buffer;
 
         cout << "title=";
@@ -212,71 +282,106 @@ class Handler {
         int sockfd = open_connection(host, PORT, AF_INET, SOCK_STREAM, 0);
 
         char *data = strdup(book.dump().c_str());
-        message = compute_post_request(host, books_link, content_type, data, NULL, 0, token_access);
-        printf("REQUEST:\n%s\n", message);
+        message = compute_post_request(host, books_path, content_type, data, NULL, 0, token_access);
 
         send_to_server(sockfd, message);
         response = receive_from_server(sockfd);
-        printf("RESPONSE:\n%s\n", response);
+
+        char *response_data = strstr(response, "{");
+        if (response_data != NULL) response_json = json::parse(string(response_data));
+
+        if (response_json.find("error") != response_json.end()) {
+            cout << "\nError: " << response_json["error"] << endl << endl;
+        } else {
+            response_data = strstr(response, " ");
+            char *fine = strstr(response_data, "\n");
+            *fine = '\0';
+
+            cout << "\nRESPONSE:" << response_data << endl << endl;
+        }
 
         free(message);
         free(response);
         free(data);
     }
 
-    void handle_logout() {
-        char *message;
-        char *response;
-
-        int sockfd = open_connection(host, PORT, AF_INET, SOCK_STREAM, 0);
-
-        if (cookies == NULL) return;
-
-        message = compute_get_request(host, logout_link, NULL, cookies, 1, NULL);
-        printf("REQUEST:\n%s\n", message);
-
-        send_to_server(sockfd, message);
-        response = receive_from_server(sockfd);
-        printf("RESPONSE:\n%s\n", response);
-
-        free(message);
-        free(response);
-
-        free(cookies[0]);
-        free(cookies);
-        free(token_access);
-
-        cookies = NULL;
-        token_access = NULL;
-    }
-
     void handle_delete_book() {
         char *message;
         char *response;
+        json response_json;
 
         cout << "id=";
-        char *id = (char *)malloc(BUFLEN * sizeof(char));
-        fgets(id, BUFLEN, stdin);
-        id[strlen(id) - 1] = '\0';
+        string id;
+        getline(cin, id);
 
         int sockfd = open_connection(host, PORT, AF_INET, SOCK_STREAM, 0);
 
-        char *get_book_link = (char *) malloc(BUFLEN * sizeof(char));
-        strcpy(get_book_link, books_link);
-        strcat(get_book_link, "/");
-        strcat(get_book_link, id);
+        char *get_book_path = (char *) malloc(BUFLEN * sizeof(char));
+        strcpy(get_book_path, books_path);
+        strcat(get_book_path, "/");
+        strcat(get_book_path, id.c_str());
 
-        message = compute_delete_request(host, get_book_link, NULL, NULL, 0, token_access);
-        printf("REQUEST:\n%s\n", message);
-
+        message = compute_delete_request(host, get_book_path, NULL, NULL, 0, token_access);
         send_to_server(sockfd, message);
-        response = receive_from_server(sockfd);
-        printf("RESPONSE:\n%s\n", response);
 
-        free(id);
-        free(get_book_link);
+        response = receive_from_server(sockfd);
+
+        char *response_data = strstr(response, "{");
+        if (response_data != NULL) response_json = json::parse(string(response_data));
+
+        if (response_json.find("error") != response_json.end()) {
+            cout << "\nError: " << response_json["error"] << endl << endl;
+        } else {
+            response_data = strstr(response, " ");
+            char *fine = strstr(response_data, "\n");
+            *fine = '\0';
+
+            cout << "\nRESPONSE:" << response_data << endl << endl;
+        }
+
+        free(get_book_path);
         free(message);
         free(response);
+    }
+
+    void handle_logout() {
+        char *message;
+        char *response;
+        json response_json;
+
+        int sockfd = open_connection(host, PORT, AF_INET, SOCK_STREAM, 0);
+
+        message = compute_get_request(host, logout_path, NULL, cookies, 1, NULL);
+        send_to_server(sockfd, message);
+
+        response = receive_from_server(sockfd);
+
+        char *response_data = strstr(response, "{");
+        if (response_data != NULL) response_json = json::parse(string(response_data));
+
+        if (response_json.find("error") != response_json.end()) {
+            cout << "\nError: " << response_json["error"] << endl << endl;
+        } else {
+            response_data = strstr(response, " ");
+            char *fine = strstr(response_data, "\n");
+            *fine = '\0';
+
+            cout << "\nRESPONSE:" << response_data << endl << endl;
+        }
+
+        free(message);
+        free(response);
+
+        if (cookies != NULL) {
+            free(cookies[0]);
+            free(cookies);
+        }
+        if (token_access != NULL) {
+            free(token_access);
+        }
+
+        cookies = NULL;
+        token_access = NULL;
     }
 
     void handle_exit(int sockfd) {
@@ -296,54 +401,53 @@ class Handler {
 
 int main(int argc, char *argv[]) {
     char host[] = "34.118.48.238";
-    char *buffer;
     int sockfd;
 
     sockfd = open_connection(host, PORT, AF_INET, SOCK_STREAM, 0);
     Handler h = Handler();
 
-    buffer = (char *) calloc(BUFLEN, sizeof(char));
+    string buffer;
 
-    while (fgets(buffer, BUFLEN, stdin) != NULL) {
-        buffer[strlen(buffer) - 1] = '\0';
+    while (getline(cin, buffer)) {
+        buffer.erase(0, buffer.find_first_not_of(" \t\n\r\f\v"));
+	    buffer.erase(buffer.find_last_not_of(" \t\n\r\f\v") + 1);
 
-        if (strncmp(buffer, "register", 9) == 0 || strncmp(buffer, "login", 6) == 0) {
+        if (buffer == "register" || buffer == "login") {
             h.handle_auth(buffer);
             continue;
         }
 
-        if (strncmp(buffer, "logout", 7) == 0) {
+        if (buffer == "logout") {
             h.handle_logout();
             continue;
         }
 
-        if (strncmp(buffer, "enter_library", 14) == 0) {
+        if (buffer == "enter_library") {
             h.handle_enter_library();
             continue;
         }
 
-        if (strncmp(buffer, "get_books", 10) == 0) {
+        if (buffer == "get_books") {
             h.handle_get_books();
             continue;
         }
 
-        if (strncmp(buffer, "get_book", 9) == 0) {
+        if (buffer == "get_book") {
             h.handle_get_book();
             continue;
         }
 
-        if (strncmp(buffer, "add_book", 9) == 0) {
+        if (buffer == "add_book") {
             h.handle_add_book();
             continue;
         }
 
-        if (strncmp(buffer, "delete_book", 12) == 0) {
+        if (buffer == "delete_book") {
             h.handle_delete_book();
             continue;
         }
 
-        if (strncmp(buffer, "exit", 5) == 0) {
-            free(buffer);
+        if (buffer == "exit") {
             h.handle_exit(sockfd);
             continue;
         }

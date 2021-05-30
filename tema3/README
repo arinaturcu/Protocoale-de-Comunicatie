@@ -1,0 +1,44 @@
+Turcu Arina Emanuea 323CA                                                       
+==================================== TEMA 3 ====================================
+
+	Pentru rezolvarea temei am folosit fisierele sursa buffer.cpp, 
+helper.cpp si requests.cpp din laboratorul 10.
+
+	In requests.cpp am scris functiile compute_get_request(), 
+compute_post_request() si compute_delete_request() dupa scheletul din laborator.
+Aceste functii completeaza header-ele si continutul mesajelor care sunt apoi
+trimise catre server.
+
+	In client.cpp am implementat interpretarea comenzilor primite de la
+stdin. Pentru fiecare comanda exista o functie cu numele handle_<comanda>() care
+face request-ul catre server respectiv comenzii.
+
+	Am ales sa folosesc biblioteca nlohmann pentru parsarea mesajelor de 
+tip JSON de la si catre server ca sa imi usurez munca. Pentru a parsa
+raspunsurile am folosit json::parse(string(response)), unde response este
+mesajul primit de la server ca char*. Pentru construirea mesajelor catre server
+am folosit data["<nume_camp>"] = buffer, unde data este un obiect json,
+<nume_camp> este numele campului pe care l-am completat si buffer este string-ul
+citit de la tastatura. Pentru ca functiile din request.cpp care compun mesajele
+primesc ca parametru un char*, am transformat obiectul json in char* astfel:
+data.dump().c_str().
+
+	Clasa Handler din client.cpp contine toate rutele de acces, cookie-ul
+de sesiune de la un moment dat, token-ul de acces si toate functiile care fac
+request-uri.
+
+	Formatul ficarei functii care face un request este urmatorul:
+	- se deschide conexiunea cu serverul
+	- se compune mesajul cu o functie din requests.cpp cu eventuale date
+	primite de la tastaura
+	- se trimite mesajul catre server
+	- se primeste raspunsul si se interpreteaza
+	- se afiseaza date relevante din raspunsul server-ului sau mesaje de 
+	eroare
+	- se elibereaza memorie alocata pe heap
+	
+	Cand un utilizator face login, se salveaza in char **cookie cookie-ul
+de sesiune care este apoi sters la logout sau exit. In acelasi fel, atunci cand
+un utilizator cere acces la biblioteca, token-ul de acces este salvat in
+char *token_acces si este sters la logout sau exit.
+
