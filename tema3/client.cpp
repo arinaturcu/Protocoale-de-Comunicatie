@@ -55,6 +55,19 @@ class Handler {
         return start;
     }
 
+    void free_stored_data() {
+        if (cookies != NULL) {
+            free(cookies[0]);
+            free(cookies);
+            cookies = NULL;
+        }
+
+        if (token_access != NULL) {
+            free(token_access);
+            token_access = NULL;
+        }
+    }
+
  public:
     Handler() {
         this->cookies = NULL;
@@ -84,17 +97,7 @@ class Handler {
         }
 
         if (auth_type == "login") {
-            if (cookies != NULL) {
-                free(cookies[0]);
-                free(cookies);
-                cookies = NULL;
-            }
-
-            if (token_access != NULL) {
-                free(token_access);
-                token_access = NULL;
-            }
-
+            free_stored_data();
             message = compute_post_request(host, login_path, content_type, data, NULL, 0, NULL);
         }
 
@@ -148,14 +151,16 @@ class Handler {
         char *fine = strstr(response_data, "\n");
         *fine = '\0';
 
-        cout << "\nRESPONSE:" << response_data << endl << endl;
+        cout << "\nRESPONSE:" << response_data << endl;
 
         if (data.find("token") != data.end()) {
             token_access = strdup(data["token"].dump().c_str() + 1);
             token_access[strlen(token_access) - 1] = '\0';
         } else if (data.find("error") != data.end()) {
-            cout << "\nError: " << data["error"] << endl << endl;
+            cout << "Error: " << data["error"] << endl;
         }
+
+        cout << endl;
 
         free(message);
         free(response);
@@ -371,29 +376,11 @@ class Handler {
 
         free(message);
         free(response);
-
-        if (cookies != NULL) {
-            free(cookies[0]);
-            free(cookies);
-        }
-        if (token_access != NULL) {
-            free(token_access);
-        }
-
-        cookies = NULL;
-        token_access = NULL;
+        free_stored_data();
     }
 
     void handle_exit(int sockfd) {
-        if (cookies != NULL) {
-            free(cookies[0]);
-            free(cookies);
-        }
-
-        if (token_access != NULL) {
-            free(token_access);
-        }
-
+        free_stored_data();
         close_connection(sockfd);
         exit(0);
     }
