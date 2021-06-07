@@ -1,0 +1,15 @@
+Turcu Arina Emanuela, 323CA
+
+    Serverul se ruleaza astfel:
+        ./server <server_port>
+
+    Clientul se ruleaza astfel:
+        ./client <id_client> 127.0.0.1 <server_port>
+
+    Cand un client primeste un mesaj, i se afiseaza in terminalul specific.
+
+    Toti clientii care s-au conectat vreodata sunt pastrati in map-ul all_clients.
+    Toti clientii activi sunt pastrati in celelalte map-uri cu diferite chei ca sa pot sa
+ii accesez usor.
+    Cand un client cere LIST, am scris toti clientii activi intr-un buffer si l-am
+trimis catre clientul care a cerut.
